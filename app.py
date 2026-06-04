@@ -222,7 +222,7 @@ with tab3:
                 
                 st.markdown("---")
                 with st.form("form_edit_po_header"):
-                    st.markdown(f"**Edit Data Pelanggan PO:** `{selected_po_id}`")
+                    st.markdown(f"**1. Edit Data Pelanggan PO:** `{selected_po_id}`")
                     col1, col2 = st.columns(2)
                     with col1:
                         new_date = st.date_input("Tanggal PO", value=edit_date)
@@ -236,14 +236,85 @@ with tab3:
                         else:
                             conn.execute("UPDATE AWE_DB.purchase_orders SET po_date=?, customer_name=? WHERE po_id=?", (new_date, new_cust, selected_po_id))
                             st.success(f"✅ Header PO `{selected_po_id}` berhasil diupdate!")
+                            if hasattr(st, 'rerun'): st.rerun()
+                            else: st.experimental_rerun()
                             
-                st.markdown("*(Catatan: Untuk mengubah detail item, silakan Hapus PO ini dan buat PO baru agar data tetap konsisten)*")
                 st.markdown("---")
-                st.markdown(f"**Hapus Data PO:** `{selected_po_id}`")
-                if st.button("❌ Hapus PO Ini", type="primary", use_container_width=True):
+                st.markdown(f"**2. Edit Daftar Item PO:** `{selected_po_id}`")
+                
+                # Query semua item berdasarkan po_id dengan menyertakan hidden rowid unik duckdb
+                po_items_df = conn.execute("SELECT rowid, selling_name, product_names, weight FROM AWE_DB.po_items WHERE po_id = ?", (selected_po_id,)).df()
+                
+                if not po_items_df.empty:
+                    st.dataframe(po_items_df[['selling_name', 'product_names', 'weight']].rename(columns={'selling_name': 'Nama Jual', 'product_names': 'Barang Konversi', 'weight': 'Berat (gr)'}), use_container_width=True, hide_index=True)
+                    
+                    item_options = po_items_df['rowid'].astype(str) + " - " + po_items_df['selling_name']
+                    selected_item_raw = st.selectbox("Pilih Item yang akan diedit/dihapus", options=item_options)
+                    selected_rowid = selected_item_raw.split(" - ")[0]
+                    
+                    selected_item_data = po_items_df[po_items_df['rowid'].astype(str) == selected_rowid].iloc[0]
+                    edit_sell = selected_item_data['selling_name']
+                    edit_prods = selected_item_data['product_names']
+                    edit_weight = selected_item_data['weight']
+                    
+                    edit_prod_list = [p.strip() for p in edit_prods.split(",")]
+                    valid_edit_prods = [p for p in edit_prod_list if p in products_list]
+                    
+                    with st.form("form_edit_po_item"):
+                        st.markdown(f"**Edit Detail Item:** `{edit_sell}`")
+                        new_sell = st.text_input("Nama Jual Barang", value=edit_sell)
+                        new_prods = st.multiselect("Barang Konversi", options=products_list, default=valid_edit_prods)
+                        new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight))
+                        
+                        col_upd, col_del = st.columns(2)
+                        with col_upd:
+                            submitted_update_item = st.form_submit_button("Update Item", use_container_width=True)
+                        with col_del:
+                            submitted_del_item = st.form_submit_button("Hapus Item", use_container_width=True)
+                            
+                        if submitted_update_item:
+                            if not new_sell.strip() or not new_prods or new_weight <= 0:
+                                st.warning("⚠️ Lengkapi data item dengan benar!")
+                            else:
+                                joined_new_prods = ", ".join(new_prods)
+                                conn.execute("UPDATE AWE_DB.po_items SET selling_name=?, product_names=?, weight=? WHERE rowid=?", (new_sell, joined_new_prods, new_weight, selected_rowid))
+                                st.success("✅ Item berhasil diupdate!")
+                                if hasattr(st, 'rerun'): st.rerun()
+                                else: st.experimental_rerun()
+                                
+                        if submitted_del_item:
+                            conn.execute("DELETE FROM AWE_DB.po_items WHERE rowid=?", (selected_rowid,))
+                            st.success("✅ Item berhasil dihapus!")
+                            if hasattr(st, 'rerun'): st.rerun()
+                            else: st.experimental_rerun()
+                else:
+                    st.info("PO ini tidak memiliki item.")
+                    
+                with st.form("form_add_po_item"):
+                    st.markdown("**Tambah Item Baru ke PO Ini**")
+                    add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: Paket Tambahan")
+                    add_prods = st.multiselect("Barang Konversi Baru", options=products_list, placeholder="Pilih barang dari katalog...")
+                    add_weight = st.number_input("Berat Total Baru (gr)", min_value=0, step=50)
+                    
+                    submitted_add_item = st.form_submit_button("➕ Tambah Item", use_container_width=True)
+                    if submitted_add_item:
+                        if not add_sell.strip() or not add_prods or add_weight <= 0:
+                            st.warning("⚠️ Lengkapi data item baru dengan benar!")
+                        else:
+                            joined_add_prods = ", ".join(add_prods)
+                            conn.execute("INSERT INTO AWE_DB.po_items (po_id, selling_name, product_names, weight) VALUES (?, ?, ?, ?)", (selected_po_id, add_sell, joined_add_prods, add_weight))
+                            st.success("✅ Item baru berhasil ditambahkan!")
+                            if hasattr(st, 'rerun'): st.rerun()
+                            else: st.experimental_rerun()
+                            
+                st.markdown("---")
+                st.markdown(f"**3. Hapus Seluruh Data PO:** `{selected_po_id}`")
+                if st.button("❌ Hapus Keseluruhan PO Ini", type="primary", use_container_width=True):
                     # Hapus item di database terlebih dahulu, baru hapus header
                     conn.execute("DELETE FROM AWE_DB.po_items WHERE po_id=?", (selected_po_id,))
                     conn.execute("DELETE FROM AWE_DB.purchase_orders WHERE po_id=?", (selected_po_id,))
                     st.success(f"✅ PO `{selected_po_id}` beserta seluruh itemnya berhasil dihapus!")
+                    if hasattr(st, 'rerun'): st.rerun()
+                    else: st.experimental_rerun()
     except Exception as e:
         st.error(f"❌ Terjadi kesalahan saat memuat form edit/hapus: {e}")
