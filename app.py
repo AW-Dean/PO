@@ -25,10 +25,17 @@ def init_connection():
             po_id VARCHAR PRIMARY KEY,
             po_date DATE,
             customer_name VARCHAR,
+            selling_name VARCHAR,
             product_names VARCHAR,
             weight DOUBLE
         );
     """)
+    
+    # Tambahkan kolom baru 'selling_name' jika tabel sebelumnya sudah terlanjur dibuat
+    try:
+        conn.execute("ALTER TABLE AWE_DB.purchase_orders ADD COLUMN selling_name VARCHAR")
+    except Exception:
+        pass # Abaikan jika kolom sudah ada
     return conn
 
 conn = init_connection()
@@ -84,9 +91,11 @@ with tab1:
         st.markdown("---")
         st.subheader("Detail Pesanan")
         
+        selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: Paket Sembako Hemat")
+        
         # Multiselect untuk menggabungkan beberapa barang
         selected_products = st.multiselect(
-            "Nama Barang (Bisa pilih lebih dari satu)",
+            "Barang Konversi (Pilih barang pembentuk nama jual)",
             options=products_list,
             placeholder="Pilih barang dari katalog..."
         )
@@ -102,6 +111,8 @@ with tab1:
             # Validasi input
             if not customer_name.strip():
                 st.warning("⚠️ Nama Customer tidak boleh kosong!")
+            elif not selling_name.strip():
+                st.warning("⚠️ Nama Jual Barang tidak boleh kosong!")
             elif not selected_products:
                 st.warning("⚠️ Silakan pilih minimal 1 barang!")
             elif weight <= 0:
@@ -115,9 +126,9 @@ with tab1:
                     # Simpan ke MotherDuck
                     conn.execute("""
                         INSERT INTO AWE_DB.purchase_orders 
-                        (po_id, po_date, customer_name, product_names, weight)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (po_id, po_date, customer_name, joined_products, weight))
+                        (po_id, po_date, customer_name, selling_name, product_names, weight)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (po_id, po_date, customer_name, selling_name, joined_products, weight))
                     
                     # Menampilkan sukses dengan UI yang menarik
                     st.success(f"✅ PO Berhasil Dibuat!")
@@ -132,14 +143,14 @@ with tab2:
     st.markdown("Berikut adalah data Purchase Order yang telah tersimpan di database.")
     
     # Fitur Pencarian
-    search_query = st.text_input("🔍 Cari berdasarkan Nama Customer atau ID PO", placeholder="Ketik di sini...")
+    search_query = st.text_input("🔍 Cari berdasarkan Nama Customer, Nama Jual, atau ID PO", placeholder="Ketik di sini...")
     
     # Query Data (Gunakan alias agar rapi di dataframe Streamlit)
-    query = "SELECT po_id as 'ID PO', po_date as 'Tanggal', customer_name as 'Customer', product_names as 'Barang', weight as 'Berat (Kg)' FROM AWE_DB.purchase_orders"
+    query = "SELECT po_id as 'ID PO', po_date as 'Tanggal', customer_name as 'Customer', selling_name as 'Nama Jual', product_names as 'Barang Konversi', weight as 'Berat (Kg)' FROM AWE_DB.purchase_orders"
     
     # Tambahkan filter ke query jika kolom pencarian diisi
     if search_query:
-        query += f" WHERE customer_name ILIKE '%{search_query}%' OR po_id ILIKE '%{search_query}%'"
+        query += f" WHERE customer_name ILIKE '%{search_query}%' OR po_id ILIKE '%{search_query}%' OR selling_name ILIKE '%{search_query}%'"
         
     # Urutkan dari PO terbaru
     query += " ORDER BY po_date DESC"
