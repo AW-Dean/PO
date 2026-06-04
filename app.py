@@ -31,6 +31,16 @@ def init_connection():
         );
     """)
     
+    # Inisialisasi tabel po_items untuk menampung multiple item dari 1 PO
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS AWE_DB.po_items (
+            po_id VARCHAR,
+            selling_name VARCHAR,
+            product_names VARCHAR,
+            weight DOUBLE
+        );
+    """)
+
     # Tambahkan kolom baru 'selling_name' jika tabel sebelumnya sudah terlanjur dibuat
     try:
         conn.execute("ALTER TABLE AWE_DB.purchase_orders ADD COLUMN selling_name VARCHAR")
@@ -80,60 +90,76 @@ tab1, tab2, tab3 = st.tabs(["📝 Buat PO Baru", "📋 PO Aktif", "✏️ Edit &
 with tab1:
     st.markdown("Silakan lengkapi detail Purchase Order di bawah ini. ID PO akan digenerate secara otomatis.")
     
-    with st.form("form_create_po"):
-        st.subheader("Data Pelanggan")
-        col1, col2 = st.columns(2)
-        with col1:
-            po_date = st.date_input("Tanggal PO", value=datetime.today())
-        with col2:
-            customer_name = st.text_input("Nama Customer", placeholder="Contoh: PT. Maju Jaya")
+    # Inisialisasi session state untuk menyimpan daftar item sementara
+    if "po_items" not in st.session_state:
+        st.session_state.po_items = []
         
-        st.markdown("---")
-        st.subheader("Detail Pesanan")
+    st.subheader("1. Data Pelanggan")
+    col1, col2 = st.columns(2)
+    with col1:
+        po_date = st.date_input("Tanggal PO", value=datetime.today())
+    with col2:
+        customer_name = st.text_input("Nama Customer", placeholder="Contoh: PT. Maju Jaya")
         
+    st.markdown("---")
+    st.subheader("2. Tambah Detail Pesanan (Multiple Item)")
+    
+    # Gunakan form kecil untuk menambahkan item agar halaman tidak refresh di setiap ketikan
+    with st.form("form_add_item"):
         selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: Paket Sembako Hemat")
-        
-        # Multiselect untuk menggabungkan beberapa barang
         selected_products = st.multiselect(
             "Barang Konversi (Pilih barang pembentuk nama jual)",
             options=products_list,
             placeholder="Pilih barang dari katalog..."
         )
-        
-        # Input berat dalam Gram (gr), menggunakan integer agar tidak ada koma 0.00
         weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
         
-        st.markdown("---")
-        # Tombol Submit
-        submitted = st.form_submit_button("Simpan PO", use_container_width=True)
-
-        if submitted:
-            # Validasi input
-            if not customer_name.strip():
-                st.warning("⚠️ Nama Customer tidak boleh kosong!")
-            elif not selling_name.strip():
-                st.warning("⚠️ Nama Jual Barang tidak boleh kosong!")
-            elif not selected_products:
-                st.warning("⚠️ Silakan pilih minimal 1 barang!")
-            elif weight <= 0:
-                st.warning("⚠️ Berat tidak boleh 0!")
+        submitted_item = st.form_submit_button("➕ Tambah Item ke Daftar")
+        
+        if submitted_item:
+            if not selling_name.strip() or not selected_products or weight <= 0:
+                st.warning("⚠️ Lengkapi data item (Nama Jual, Barang, dan Berat > 0)!")
             else:
-                # Generate Data
+                st.session_state.po_items.append({
+                    "Nama Jual": selling_name,
+                    "Barang Konversi": ", ".join(selected_products),
+                    "Berat (gr)": weight
+                })
+                st.success("✅ Item berhasil ditambahkan ke daftar!")
+
+    # Tampilkan daftar item dan tombol simpan utama
+    if st.session_state.po_items:
+        st.markdown("**Daftar Item dalam PO ini:**")
+        st.dataframe(st.session_state.po_items, use_container_width=True)
+        
+        if st.button("💾 Simpan Semua Data PO", type="primary", use_container_width=True):
+            if not customer_name.strip():
+                st.error("⚠️ Nama Customer tidak boleh kosong!")
+            else:
                 po_id = generate_po_id(po_date, customer_name)
-                joined_products = ", ".join(selected_products) # Menggabungkan nama barang
                 
                 try:
-                    # Simpan ke MotherDuck
+                    # 1. Simpan Header PO
                     conn.execute("""
                         INSERT INTO AWE_DB.purchase_orders 
                         (po_id, po_date, customer_name, selling_name, product_names, weight)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (po_id, po_date, customer_name, selling_name, joined_products, weight))
+                        VALUES (?, ?, ?, 'MULTIPLE ITEMS', 'MULTIPLE ITEMS', 0)
+                    """, (po_id, po_date, customer_name))
                     
-                    # Menampilkan sukses dengan UI yang menarik
-                    st.success(f"✅ PO Berhasil Dibuat!")
+                    # 2. Simpan Detail Items PO
+                    for item in st.session_state.po_items:
+                        conn.execute("""
+                            INSERT INTO AWE_DB.po_items 
+                            (po_id, selling_name, product_names, weight)
+                            VALUES (?, ?, ?, ?)
+                        """, (po_id, item["Nama Jual"], item["Barang Konversi"], item["Berat (gr)"]))
+                        
+                    st.success("✅ Seluruh data PO Berhasil Dibuat!")
                     st.info(f"**ID PO Anda:** `{po_id}`")
-                    st.balloons() # Efek balon di Streamlit
+                    st.balloons()
+                    
+                    # Kosongkan kembali daftar item setelah berhasil disimpan
+                    st.session_state.po_items = []
                     
                 except Exception as e:
                     st.error(f"❌ Terjadi kesalahan saat menyimpan ke database: {e}")
@@ -145,15 +171,25 @@ with tab2:
     # Fitur Pencarian
     search_query = st.text_input("🔍 Cari berdasarkan Nama Customer, Nama Jual, atau ID PO", placeholder="Ketik di sini...")
     
-    # Query Data (Gunakan alias agar rapi di dataframe Streamlit)
-    query = "SELECT po_id as 'ID PO', po_date as 'Tanggal', customer_name as 'Customer', selling_name as 'Nama Jual', product_names as 'Barang Konversi', weight as 'Berat (gr)' FROM AWE_DB.purchase_orders"
+    # Query Data: Menggunakan LEFT JOIN agar item-item dalam 1 PO tampil semua bersama data Header-nya
+    query = """
+        SELECT 
+            p.po_id as 'ID PO', 
+            p.po_date as 'Tanggal', 
+            p.customer_name as 'Customer', 
+            COALESCE(i.selling_name, p.selling_name) as 'Nama Jual', 
+            COALESCE(i.product_names, p.product_names) as 'Barang Konversi', 
+            COALESCE(i.weight, p.weight) as 'Berat (gr)' 
+        FROM AWE_DB.purchase_orders p
+        LEFT JOIN AWE_DB.po_items i ON p.po_id = i.po_id
+    """
     
     # Tambahkan filter ke query jika kolom pencarian diisi
     if search_query:
-        query += f" WHERE customer_name ILIKE '%{search_query}%' OR po_id ILIKE '%{search_query}%' OR selling_name ILIKE '%{search_query}%'"
+        query += f" WHERE p.customer_name ILIKE '%{search_query}%' OR p.po_id ILIKE '%{search_query}%' OR i.selling_name ILIKE '%{search_query}%'"
         
     # Urutkan dari PO terbaru
-    query += " ORDER BY po_date DESC"
+    query += " ORDER BY p.po_date DESC, p.po_id"
     
     try:
         df_po = conn.execute(query).df()
@@ -178,45 +214,36 @@ with tab3:
             selected_po_raw = st.selectbox("Pilih PO yang akan diedit/dihapus", options=po_options)
             selected_po_id = selected_po_raw.split(" - ")[0]
             
-            # Ambil detail dari database
-            po_data = conn.execute("SELECT po_date, customer_name, selling_name, product_names, weight FROM AWE_DB.purchase_orders WHERE po_id = ?", (selected_po_id,)).fetchone()
+            # Fetch Data Header
+            po_header = conn.execute("SELECT po_date, customer_name FROM AWE_DB.purchase_orders WHERE po_id = ?", (selected_po_id,)).fetchone()
             
-            if po_data:
-                edit_date, edit_cust, edit_sell, edit_prods, edit_weight = po_data
-                edit_prod_list = [p.strip() for p in edit_prods.split(",")]
-                valid_edit_prods = [p for p in edit_prod_list if p in products_list]
-
-                st.markdown("---")
+            if po_header:
+                edit_date, edit_cust = po_header
                 
-                # Form untuk Edit
-                with st.form("form_edit_po"):
-                    st.markdown(f"**Edit Data PO:** `{selected_po_id}`")
+                st.markdown("---")
+                with st.form("form_edit_po_header"):
+                    st.markdown(f"**Edit Data Pelanggan PO:** `{selected_po_id}`")
                     col1, col2 = st.columns(2)
                     with col1:
                         new_date = st.date_input("Tanggal PO", value=edit_date)
                     with col2:
                         new_cust = st.text_input("Nama Customer", value=edit_cust)
-                    
-                    new_sell = st.text_input("Nama Jual Barang", value=edit_sell)
-                    
-                    new_prods = st.multiselect("Barang Konversi", options=products_list, default=valid_edit_prods)
-                    new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight))
-                    
-                    submitted_edit = st.form_submit_button("Update PO", use_container_width=True)
-                    
+                        
+                    submitted_edit = st.form_submit_button("Update Pelanggan", use_container_width=True)
                     if submitted_edit:
-                        if not new_cust.strip() or not new_sell.strip() or not new_prods or new_weight <= 0:
-                            st.warning("⚠️ Pastikan semua form terisi dan berat > 0!")
+                        if not new_cust.strip():
+                            st.warning("⚠️ Nama Customer tidak boleh kosong!")
                         else:
-                            joined_new_prods = ", ".join(new_prods)
-                            conn.execute("""UPDATE AWE_DB.purchase_orders SET po_date=?, customer_name=?, selling_name=?, product_names=?, weight=? WHERE po_id=?""", (new_date, new_cust, new_sell, joined_new_prods, new_weight, selected_po_id))
-                            st.success(f"✅ PO `{selected_po_id}` berhasil diupdate!")
-                
+                            conn.execute("UPDATE AWE_DB.purchase_orders SET po_date=?, customer_name=? WHERE po_id=?", (new_date, new_cust, selected_po_id))
+                            st.success(f"✅ Header PO `{selected_po_id}` berhasil diupdate!")
+                            
+                st.markdown("*(Catatan: Untuk mengubah detail item, silakan Hapus PO ini dan buat PO baru agar data tetap konsisten)*")
                 st.markdown("---")
                 st.markdown(f"**Hapus Data PO:** `{selected_po_id}`")
-                # Tombol untuk Hapus di luar form agar memiliki action/fungsi yang berbeda
                 if st.button("❌ Hapus PO Ini", type="primary", use_container_width=True):
+                    # Hapus item di database terlebih dahulu, baru hapus header
+                    conn.execute("DELETE FROM AWE_DB.po_items WHERE po_id=?", (selected_po_id,))
                     conn.execute("DELETE FROM AWE_DB.purchase_orders WHERE po_id=?", (selected_po_id,))
-                    st.success(f"✅ PO `{selected_po_id}` berhasil dihapus!")
+                    st.success(f"✅ PO `{selected_po_id}` beserta seluruh itemnya berhasil dihapus!")
     except Exception as e:
         st.error(f"❌ Terjadi kesalahan saat memuat form edit/hapus: {e}")
