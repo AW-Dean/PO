@@ -75,7 +75,7 @@ st.title("📦 Sistem Manajemen Purchase Order")
 # Tarik data produk dari MotherDuck
 products_list = fetch_products()
 
-tab1, tab2 = st.tabs(["📝 Buat PO Baru", "📋 Daftar PO"])
+tab1, tab2, tab3 = st.tabs(["📝 Buat PO Baru", "📋 PO Aktif", "✏️ Edit & Hapus PO"])
 
 with tab1:
     st.markdown("Silakan lengkapi detail Purchase Order di bawah ini. ID PO akan digenerate secara otomatis.")
@@ -100,8 +100,8 @@ with tab1:
             placeholder="Pilih barang dari katalog..."
         )
         
-        # Input berat
-        weight = st.number_input("Berat Total (Kg)", min_value=0.0, format="%.2f", step=0.5)
+        # Input berat dalam Gram (gr), menggunakan integer agar tidak ada koma 0.00
+        weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
         
         st.markdown("---")
         # Tombol Submit
@@ -139,14 +139,14 @@ with tab1:
                     st.error(f"❌ Terjadi kesalahan saat menyimpan ke database: {e}")
 
 with tab2:
-    st.subheader("Daftar Purchase Order")
-    st.markdown("Berikut adalah data Purchase Order yang telah tersimpan di database.")
+    st.subheader("Purchase Order Aktif")
+    st.markdown("Berikut adalah data Purchase Order aktif yang telah tersimpan di database.")
     
     # Fitur Pencarian
     search_query = st.text_input("🔍 Cari berdasarkan Nama Customer, Nama Jual, atau ID PO", placeholder="Ketik di sini...")
     
     # Query Data (Gunakan alias agar rapi di dataframe Streamlit)
-    query = "SELECT po_id as 'ID PO', po_date as 'Tanggal', customer_name as 'Customer', selling_name as 'Nama Jual', product_names as 'Barang Konversi', weight as 'Berat (Kg)' FROM AWE_DB.purchase_orders"
+    query = "SELECT po_id as 'ID PO', po_date as 'Tanggal', customer_name as 'Customer', selling_name as 'Nama Jual', product_names as 'Barang Konversi', weight as 'Berat (gr)' FROM AWE_DB.purchase_orders"
     
     # Tambahkan filter ke query jika kolom pencarian diisi
     if search_query:
@@ -164,3 +164,59 @@ with tab2:
             st.dataframe(df_po, use_container_width=True, hide_index=True)
     except Exception as e:
         st.error(f"Gagal memuat data PO: {e}")
+
+with tab3:
+    st.subheader("Edit atau Hapus Purchase Order")
+    try:
+        # Ambil daftar PO untuk dropdown
+        df_po_list = conn.execute("SELECT po_id, customer_name FROM AWE_DB.purchase_orders ORDER BY po_date DESC").df()
+        if df_po_list.empty:
+            st.info("Belum ada data PO untuk diedit atau dihapus.")
+        else:
+            # Buat opsi dropdown berupa "ID_PO - Nama Customer"
+            po_options = df_po_list['po_id'].astype(str) + " - " + df_po_list['customer_name']
+            selected_po_raw = st.selectbox("Pilih PO yang akan diedit/dihapus", options=po_options)
+            selected_po_id = selected_po_raw.split(" - ")[0]
+            
+            # Ambil detail dari database
+            po_data = conn.execute("SELECT po_date, customer_name, selling_name, product_names, weight FROM AWE_DB.purchase_orders WHERE po_id = ?", (selected_po_id,)).fetchone()
+            
+            if po_data:
+                edit_date, edit_cust, edit_sell, edit_prods, edit_weight = po_data
+                edit_prod_list = [p.strip() for p in edit_prods.split(",")]
+                valid_edit_prods = [p for p in edit_prod_list if p in products_list]
+
+                st.markdown("---")
+                
+                # Form untuk Edit
+                with st.form("form_edit_po"):
+                    st.markdown(f"**Edit Data PO:** `{selected_po_id}`")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_date = st.date_input("Tanggal PO", value=edit_date)
+                    with col2:
+                        new_cust = st.text_input("Nama Customer", value=edit_cust)
+                    
+                    new_sell = st.text_input("Nama Jual Barang", value=edit_sell)
+                    
+                    new_prods = st.multiselect("Barang Konversi", options=products_list, default=valid_edit_prods)
+                    new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight))
+                    
+                    submitted_edit = st.form_submit_button("Update PO", use_container_width=True)
+                    
+                    if submitted_edit:
+                        if not new_cust.strip() or not new_sell.strip() or not new_prods or new_weight <= 0:
+                            st.warning("⚠️ Pastikan semua form terisi dan berat > 0!")
+                        else:
+                            joined_new_prods = ", ".join(new_prods)
+                            conn.execute("""UPDATE AWE_DB.purchase_orders SET po_date=?, customer_name=?, selling_name=?, product_names=?, weight=? WHERE po_id=?""", (new_date, new_cust, new_sell, joined_new_prods, new_weight, selected_po_id))
+                            st.success(f"✅ PO `{selected_po_id}` berhasil diupdate!")
+                
+                st.markdown("---")
+                st.markdown(f"**Hapus Data PO:** `{selected_po_id}`")
+                # Tombol untuk Hapus di luar form agar memiliki action/fungsi yang berbeda
+                if st.button("❌ Hapus PO Ini", type="primary", use_container_width=True):
+                    conn.execute("DELETE FROM AWE_DB.purchase_orders WHERE po_id=?", (selected_po_id,))
+                    st.success(f"✅ PO `{selected_po_id}` berhasil dihapus!")
+    except Exception as e:
+        st.error(f"❌ Terjadi kesalahan saat memuat form edit/hapus: {e}")
