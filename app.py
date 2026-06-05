@@ -112,7 +112,7 @@ with tab1:
         
         # Filter list barang secara strict berdasarkan spelling di Nama Jual
         # (Tekan Enter setelah mengisi Nama Jual untuk memperbarui pilihan dropdown)
-        filtered_options = [p for p in products_list if selling_name.strip().lower() in p.lower()] if selling_name.strip() else products_list
+        filtered_options = [p for p in products_list if p.lower().startswith(selling_name.strip().lower())] if selling_name.strip() else products_list
         
         selected_products = st.multiselect(
             "Konversi (Pilih nama barang untuk nama jual)",
@@ -305,7 +305,7 @@ with tab3:
                         
                         # Filter options berdasarkan spelling baru
                         if new_sell.strip():
-                            filtered_edit_options = [p for p in products_list if new_sell.strip().lower() in p.lower()]
+                            filtered_edit_options = [p for p in products_list if p.lower().startswith(new_sell.strip().lower())]
                             # Pastikan item yang sedang terpilih tetap ada di daftar agar widget tidak error
                             for p in valid_edit_prods:
                                 if p not in filtered_edit_options:
@@ -345,7 +345,7 @@ with tab3:
                     add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: N1, N1-BC, N2-H dst")
                     
                     # Filter berdasarkan spelling baru
-                    filtered_add_options = [p for p in products_list if add_sell.strip().lower() in p.lower()] if add_sell.strip() else products_list
+                    filtered_add_options = [p for p in products_list if p.lower().startswith(add_sell.strip().lower())] if add_sell.strip() else products_list
                     
                     add_prods = st.multiselect("Barang Konversi Baru", options=filtered_add_options if filtered_add_options else products_list, placeholder="Pilih barang")
                     add_weight = st.number_input("Berat Total Baru (gr)", min_value=0, step=50)
