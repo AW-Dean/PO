@@ -106,53 +106,50 @@ with tab1:
     st.markdown("---")
     st.subheader("2. Tambah Detail Pesanan (Multiple Item)")
     
-    # Gunakan form kecil untuk menambahkan item agar halaman tidak refresh di setiap ketikan
-    with st.form("form_add_item"):
-        selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
+    # Hapus st.form agar filter menjadi reaktif
+    selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
+    
+    # Filter list barang secara strict (Prefix matching)
+    # Gunakan .strip() untuk menghindari spasi tak sengaja
+    search_term = selling_name.strip().lower()
+    filtered_options = [p for p in products_list if p.strip().lower().startswith(search_term)] if search_term else products_list
+    
+    selected_products = st.multiselect(
+        "Konversi (Pilih nama barang untuk nama jual)",
+        options=filtered_options, # Tampilkan hasil filter saja
+        placeholder="Pilih barang "
+    )
+    weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
+    
+    if st.button("➕ Tambah Item ke Daftar"):
+        # --- VALIDASI DUPLIKAT & KEMIRIPAN (CASE & TYPO) ---
+        input_name = selling_name.strip()
+        is_duplicate = False
+        similar_match = None
         
-        # Filter list barang secara strict berdasarkan spelling di Nama Jual
-        # (Tekan Enter setelah mengisi Nama Jual untuk memperbarui pilihan dropdown)
-        filtered_options = [p for p in products_list if p.lower().startswith(selling_name.strip().lower())] if selling_name.strip() else products_list
-        
-        selected_products = st.multiselect(
-            "Konversi (Pilih nama barang untuk nama jual)",
-            options=filtered_options if filtered_options else products_list,
-            placeholder="Pilih barang "
-        )
-        weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
-        
-        submitted_item = st.form_submit_button("➕ Tambah Item ke Daftar")
-        
-        if submitted_item:
-            # --- VALIDASI DUPLIKAT & KEMIRIPAN (CASE & TYPO) ---
-            input_name = selling_name.strip()
-            is_duplicate = False
-            similar_match = None
-            
-            for item in st.session_state.po_items:
-                existing_name = item["Nama Jual"]
-                # Cek duplikat persis (case-insensitive)
-                if input_name.lower() == existing_name.lower():
-                    is_duplicate = True
-                    break
-                # Cek kemungkinan typo (threshold kemiripan > 0.8)
-                if difflib.SequenceMatcher(None, input_name.lower(), existing_name.lower()).ratio() > 0.8:
-                    similar_match = existing_name
-                    break
+        for item in st.session_state.po_items:
+            existing_name = item["Nama Jual"]
+            if input_name.lower() == existing_name.lower():
+                is_duplicate = True
+                break
+            if difflib.SequenceMatcher(None, input_name.lower(), existing_name.lower()).ratio() > 0.8:
+                similar_match = existing_name
+                break
 
-            if not selling_name.strip() or not selected_products or weight <= 0:
-                st.warning("⚠️ Lengkapi data item (Nama Jual, Barang, dan Berat > 0)!")
-            elif is_duplicate:
-                st.error(f"🚫 Gagal: Item '{input_name}' sudah ada di daftar!")
-            elif similar_match:
-                st.warning(f"⚠️ Peringatan: Nama '{input_name}' sangat mirip dengan '{similar_match}'. Mohon periksa kembali apakah ada typo.")
-            else:
-                st.session_state.po_items.append({
-                    "Nama Jual": selling_name,
-                    "Barang Konversi": ", ".join(selected_products),
-                    "Berat (gr)": weight
-                })
-                st.success("✅ Item berhasil ditambahkan ke daftar!")
+        if not selling_name.strip() or not selected_products or weight <= 0:
+            st.warning("⚠️ Lengkapi data item (Nama Jual, Barang, dan Berat > 0)!")
+        elif is_duplicate:
+            st.error(f"🚫 Gagal: Item '{input_name}' sudah ada di daftar!")
+        elif similar_match:
+            st.warning(f"⚠️ Peringatan: Nama '{input_name}' sangat mirip dengan '{similar_match}'. Mohon periksa kembali apakah ada typo.")
+        else:
+            st.session_state.po_items.append({
+                "Nama Jual": selling_name,
+                "Barang Konversi": ", ".join(selected_products),
+                "Berat (gr)": weight
+            })
+            st.success("✅ Item berhasil ditambahkan ke daftar!")
+            st.rerun()
 
     # Tampilkan daftar item dan tombol simpan utama
     if st.session_state.po_items:
@@ -299,84 +296,76 @@ with tab3:
                     edit_prod_list = [p.strip() for p in edit_prods.split(",")]
                     valid_edit_prods = [p for p in edit_prod_list if p in products_list]
                     
-                    with st.form("form_edit_po_item"):
-                        st.markdown(f"**Edit Detail Item:** `{edit_sell}`")
-                        new_sell = st.text_input("Nama Jual Barang", value=edit_sell)
-                        
-                        # Filter options berdasarkan spelling baru
-                        if new_sell.strip():
-                            filtered_edit_options = [p for p in products_list if p.lower().startswith(new_sell.strip().lower())]
-                            # Pastikan item yang sedang terpilih tetap ada di daftar agar widget tidak error
-                            for p in valid_edit_prods:
-                                if p not in filtered_edit_options:
-                                    filtered_edit_options.append(p)
-                        else:
-                            filtered_edit_options = products_list
-                        
-                        new_prods = st.multiselect("Barang Konversi", options=filtered_edit_options, default=valid_edit_prods)
-                        new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight))
-                        
-                        col_upd, col_del = st.columns(2)
-                        with col_upd:
-                            submitted_update_item = st.form_submit_button("Update Item", use_container_width=True)
-                        with col_del:
-                            submitted_del_item = st.form_submit_button("Hapus Item", use_container_width=True)
-                            
-                        if submitted_update_item:
+                    st.markdown(f"**Edit Detail Item:** `{edit_sell}`")
+                    new_sell = st.text_input("Nama Jual Barang", value=edit_sell, key="edit_sell_input")
+                    
+                    # Filter options secara reaktif
+                    search_edit = new_sell.strip().lower()
+                    if search_edit:
+                        filtered_edit_options = [p for p in products_list if p.strip().lower().startswith(search_edit)]
+                        # Pastikan item yang sedang terpilih tetap ada di daftar agar widget tidak error
+                        for p in valid_edit_prods:
+                            if p not in filtered_edit_options:
+                                filtered_edit_options.append(p)
+                    else:
+                        filtered_edit_options = products_list
+                    
+                    new_prods = st.multiselect("Barang Konversi", options=filtered_edit_options, default=valid_edit_prods)
+                    new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight), key="edit_weight_input")
+                    
+                    col_upd, col_del = st.columns(2)
+                    with col_upd:
+                        if st.button("Update Item", use_container_width=True):
                             if not new_sell.strip() or not new_prods or new_weight <= 0:
                                 st.warning("⚠️ Lengkapi data item dengan benar!")
                             else:
                                 joined_new_prods = ", ".join(new_prods)
                                 conn.execute("UPDATE AWE_DB.po_items SET selling_name=?, product_names=?, weight=? WHERE rowid=?", (new_sell, joined_new_prods, new_weight, selected_rowid))
                                 st.success("✅ Item berhasil diupdate!")
-                                if hasattr(st, 'rerun'): st.rerun()
-                                else: st.experimental_rerun()
-                                
-                        if submitted_del_item:
+                                st.rerun()
+                    with col_del:
+                        if st.button("Hapus Item", use_container_width=True):
                             conn.execute("DELETE FROM AWE_DB.po_items WHERE rowid=?", (selected_rowid,))
                             st.success("✅ Item berhasil dihapus!")
-                            if hasattr(st, 'rerun'): st.rerun()
-                            else: st.experimental_rerun()
+                            st.rerun()
                 else:
                     st.info("PO ini tidak memiliki item.")
                     
-                with st.form("form_add_po_item"):
-                    st.markdown("**Tambah Item Baru ke PO Ini**")
-                    add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: N1, N1-BC, N2-H dst")
+                st.markdown("**Tambah Item Baru ke PO Ini**")
+                add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: N1, N1-BC, N2-H dst", key="add_sell_new")
+                
+                # Filter reaktif
+                search_add = add_sell.strip().lower()
+                filtered_add_options = [p for p in products_list if p.strip().lower().startswith(search_add)] if search_add else products_list
+                
+                add_prods = st.multiselect("Barang Konversi Baru", options=filtered_add_options, placeholder="Pilih barang")
+                add_weight = st.number_input("Berat Total Baru (gr)", min_value=0, step=50, key="add_weight_new")
+                
+                if st.button("➕ Tambah Item", use_container_width=True):
+                    # --- VALIDASI DUPLIKAT & KEMIRIPAN ---
+                    input_add_name = add_sell.strip()
+                    is_duplicate_add = False
+                    similar_match_add = None
                     
-                    # Filter berdasarkan spelling baru
-                    filtered_add_options = [p for p in products_list if p.lower().startswith(add_sell.strip().lower())] if add_sell.strip() else products_list
-                    
-                    add_prods = st.multiselect("Barang Konversi Baru", options=filtered_add_options if filtered_add_options else products_list, placeholder="Pilih barang")
-                    add_weight = st.number_input("Berat Total Baru (gr)", min_value=0, step=50)
-                    
-                    submitted_add_item = st.form_submit_button("➕ Tambah Item", use_container_width=True)
-                    if submitted_add_item:
-                        # --- VALIDASI DUPLIKAT & KEMIRIPAN (CASE & TYPO) ---
-                        input_add_name = add_sell.strip()
-                        is_duplicate_add = False
-                        similar_match_add = None
-                        
-                        for existing_name in po_items_df['selling_name']:
-                            if input_add_name.lower() == existing_name.lower():
-                                is_duplicate_add = True
-                                break
-                            if difflib.SequenceMatcher(None, input_add_name.lower(), existing_name.lower()).ratio() > 0.8:
-                                similar_match_add = existing_name
-                                break
+                    for existing_name in po_items_df['selling_name']:
+                        if input_add_name.lower() == existing_name.lower():
+                            is_duplicate_add = True
+                            break
+                        if difflib.SequenceMatcher(None, input_add_name.lower(), existing_name.lower()).ratio() > 0.8:
+                            similar_match_add = existing_name
+                            break
 
-                        if not add_sell.strip() or not add_prods or add_weight <= 0:
-                            st.warning("⚠️ Lengkapi data item baru dengan benar!")
-                        elif is_duplicate_add:
-                            st.error(f"🚫 Item '{input_add_name}' sudah ada di PO ini!")
-                        elif similar_match_add:
-                            st.warning(f"⚠️ Nama '{input_add_name}' sangat mirip dengan '{similar_match_add}'. Mohon periksa typo.")
-                        else:
-                            joined_add_prods = ", ".join(add_prods)
-                            conn.execute("INSERT INTO AWE_DB.po_items (po_id, selling_name, product_names, weight) VALUES (?, ?, ?, ?)", (selected_po_id, add_sell, joined_add_prods, add_weight))
-                            st.success("✅ Item baru berhasil ditambahkan!")
-                            if hasattr(st, 'rerun'): st.rerun()
-                            else: st.experimental_rerun()
+                    if not add_sell.strip() or not add_prods or add_weight <= 0:
+                        st.warning("⚠️ Lengkapi data item baru dengan benar!")
+                    elif is_duplicate_add:
+                        st.error(f"🚫 Item '{input_add_name}' sudah ada di PO ini!")
+                    elif similar_match_add:
+                        st.warning(f"⚠️ Nama '{input_add_name}' sangat mirip dengan '{similar_match_add}'. Mohon periksa typo.")
+                    else:
+                        joined_add_prods = ", ".join(add_prods)
+                        conn.execute("INSERT INTO AWE_DB.po_items (po_id, selling_name, product_names, weight) VALUES (?, ?, ?, ?)", (selected_po_id, add_sell, joined_add_prods, add_weight))
+                        st.success("✅ Item baru berhasil ditambahkan!")
+                        st.rerun()
                             
                 st.markdown("---")
                 st.markdown(f"**3. Hapus Seluruh Data PO:** `{selected_po_id}`")
