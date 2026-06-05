@@ -100,14 +100,14 @@ with tab1:
     with col1:
         po_date = st.date_input("Tanggal PO", value=datetime.today())
     with col2:
-        customer_name = st.text_input("Nama Customer", placeholder="Contoh: PT. Maju Jaya")
+        customer_name = st.text_input("Nama Customer", placeholder="Contoh: Liao, AHGN dst")
         
     st.markdown("---")
     st.subheader("2. Tambah Detail Pesanan (Multiple Item)")
     
     # Gunakan form kecil untuk menambahkan item agar halaman tidak refresh di setiap ketikan
     with st.form("form_add_item"):
-        selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: Paket Sembako Hemat")
+        selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
         selected_products = st.multiselect(
             "Barang Konversi (Pilih barang pembentuk nama jual)",
             options=products_list,
@@ -305,8 +305,8 @@ with tab3:
                     
                 with st.form("form_add_po_item"):
                     st.markdown("**Tambah Item Baru ke PO Ini**")
-                    add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: Paket Tambahan")
-                    add_prods = st.multiselect("Barang Konversi Baru", options=products_list, placeholder="Pilih barang dari katalog...")
+                    add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: N1, N1-BC, N2-H dst")
+                    add_prods = st.multiselect("Barang Konversi Baru", options=products_list, placeholder="Pilih barang")
                     add_weight = st.number_input("Berat Total Baru (gr)", min_value=0, step=50)
                     
                     submitted_add_item = st.form_submit_button("➕ Tambah Item", use_container_width=True)
