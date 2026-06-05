@@ -107,10 +107,6 @@ with tab1:
     st.markdown("---")
     st.subheader("2. Daftar Item Pesanan")
     
-    # Filter global untuk mempermudah pemilihan barang di dalam tabel (Exact Match)
-    search_item = st.text_input("🔍 Filter Pilihan Barang di Tabel (Exact Match):", placeholder="Ketik 'B1' untuk membatasi pilihan barang")
-    options_filtered = [p for p in products_list if p.lower() == search_item.strip().lower()] if search_item.strip() else products_list
-
     # Editor Tabel untuk input sekaligus melihat daftar
     edited_df = st.data_editor(
         st.session_state.df_items,
@@ -119,7 +115,7 @@ with tab1:
         column_config={
             "Barang Konversi": st.column_config.MultiselectColumn(
                 "Barang Konversi",
-                options=options_filtered,
+                options=products_list,
                 required=True
             ),
             "Berat (gr)": st.column_config.NumberColumn("Berat (gr)", min_value=0, step=50)
@@ -285,18 +281,7 @@ with tab3:
                     st.markdown(f"**Edit Detail Item:** `{edit_sell}`")
                     new_sell = st.text_input("Nama Jual Barang", value=edit_sell, key="edit_sell_input")
                     
-                    # Filter dropdown pada bagian Edit
-                    search_edit = st.text_input("🔍 Cari Nama Barang:", key="search_edit_prod")
-                    if search_edit.strip():
-                        filtered_edit = [p for p in products_list if p.lower() == search_edit.strip().lower()]
-                        # Pastikan item yang sedang terpilih tetap ada di daftar agar Streamlit tidak error
-                        for p in valid_edit_prods:
-                            if p not in filtered_edit:
-                                filtered_edit.append(p)
-                    else:
-                        filtered_edit = products_list
-
-                    new_prods = st.multiselect("Barang Konversi", options=filtered_edit, default=valid_edit_prods)
+                    new_prods = st.multiselect("Barang Konversi", options=products_list, default=valid_edit_prods)
                     new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight), key="edit_weight_input")
                     
                     col_upd, col_del = st.columns(2)
@@ -316,11 +301,8 @@ with tab3:
                             st.rerun()
                 else:
                     st.info("PO ini tidak memiliki item.")
-                    
-                st.markdown("**Tambah Item Baru ke PO Ini**")
-                search_add_q = st.text_input("🔍 Filter Pilihan Barang Baru (Exact Match):", key="search_add_q")
-                options_add = [p for p in products_list if p.lower() == search_add_q.strip().lower()] if search_add_q.strip() else products_list
 
+                st.markdown("**Tambah Item Baru ke PO Ini**")
                 if "df_add_items" not in st.session_state:
                     st.session_state.df_add_items = pd.DataFrame(columns=["Nama Jual", "Barang Konversi", "Berat (gr)"])
 
@@ -329,7 +311,7 @@ with tab3:
                     num_rows="dynamic",
                     use_container_width=True,
                     column_config={
-                        "Barang Konversi": st.column_config.MultiselectColumn(options=options_add, required=True),
+                        "Barang Konversi": st.column_config.MultiselectColumn(options=products_list, required=True),
                     },
                     key="editor_add_tab3"
                 )
