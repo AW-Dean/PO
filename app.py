@@ -131,17 +131,17 @@ with tab1:
             if input_name.lower() == existing_name.lower():
                 is_duplicate = True
                 break
-            if difflib.SequenceMatcher(None, input_name.lower(), existing_name.lower()).ratio() > 0.8:
+            if not similar_match and difflib.SequenceMatcher(None, input_name.lower(), existing_name.lower()).ratio() > 0.8:
                 similar_match = existing_name
-                break
 
         if not selling_name.strip() or not selected_products or weight <= 0:
             st.warning("⚠️ Lengkapi data item (Nama Jual, Barang, dan Berat > 0)!")
         elif is_duplicate:
             st.error(f"🚫 Gagal: Item '{input_name}' sudah ada di daftar!")
-        elif similar_match:
-            st.warning(f"⚠️ Peringatan: Nama '{input_name}' sangat mirip dengan '{similar_match}'. Mohon periksa kembali apakah ada typo.")
         else:
+            if similar_match:
+                st.warning(f"⚠️ Peringatan: Nama '{input_name}' sangat mirip dengan '{similar_match}'. Mohon periksa kembali apakah ada typo.")
+
             st.session_state.po_items.append({
                 "Nama Jual": selling_name,
                 "Barang Konversi": ", ".join(selected_products),
@@ -350,17 +350,17 @@ with tab3:
                         if input_add_name.lower() == existing_name.lower():
                             is_duplicate_add = True
                             break
-                        if difflib.SequenceMatcher(None, input_add_name.lower(), existing_name.lower()).ratio() > 0.8:
+                        if not similar_match_add and difflib.SequenceMatcher(None, input_add_name.lower(), existing_name.lower()).ratio() > 0.8:
                             similar_match_add = existing_name
-                            break
 
                     if not add_sell.strip() or not add_prods or add_weight <= 0:
                         st.warning("⚠️ Lengkapi data item baru dengan benar!")
                     elif is_duplicate_add:
                         st.error(f"🚫 Item '{input_add_name}' sudah ada di PO ini!")
-                    elif similar_match_add:
-                        st.warning(f"⚠️ Nama '{input_add_name}' sangat mirip dengan '{similar_match_add}'. Mohon periksa typo.")
                     else:
+                        if similar_match_add:
+                            st.warning(f"⚠️ Nama '{input_add_name}' sangat mirip dengan '{similar_match_add}'. Mohon periksa typo.")
+
                         joined_add_prods = ", ".join(add_prods)
                         conn.execute("INSERT INTO AWE_DB.po_items (po_id, selling_name, product_names, weight) VALUES (?, ?, ?, ?)", (selected_po_id, add_sell, joined_add_prods, add_weight))
                         st.success("✅ Item baru berhasil ditambahkan!")
