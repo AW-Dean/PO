@@ -109,9 +109,13 @@ with tab1:
     # Hapus st.form agar filter menjadi reaktif
     selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
     
+    # Filter dropdown berdasarkan input pencarian spesifik (Exact Match)
+    search_query = st.text_input("🔍 Cari Nama Barang Konversi:", placeholder="Ketik nama barang (misal: B1)")
+    filtered_options = [p for p in products_list if p.lower() == search_query.strip().lower()] if search_query.strip() else products_list
+
     selected_products = st.multiselect(
         "Konversi (Pilih nama barang untuk nama jual)",
-        options=products_list,
+        options=filtered_options,
         placeholder="Pilih barang "
     )
     weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
@@ -294,7 +298,18 @@ with tab3:
                     st.markdown(f"**Edit Detail Item:** `{edit_sell}`")
                     new_sell = st.text_input("Nama Jual Barang", value=edit_sell, key="edit_sell_input")
                     
-                    new_prods = st.multiselect("Barang Konversi", options=products_list, default=valid_edit_prods)
+                    # Filter dropdown pada bagian Edit
+                    search_edit = st.text_input("🔍 Cari Nama Barang:", key="search_edit_prod")
+                    if search_edit.strip():
+                        filtered_edit = [p for p in products_list if p.lower() == search_edit.strip().lower()]
+                        # Pastikan item yang sedang terpilih tetap ada di daftar agar Streamlit tidak error
+                        for p in valid_edit_prods:
+                            if p not in filtered_edit:
+                                filtered_edit.append(p)
+                    else:
+                        filtered_edit = products_list
+
+                    new_prods = st.multiselect("Barang Konversi", options=filtered_edit, default=valid_edit_prods)
                     new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight), key="edit_weight_input")
                     
                     col_upd, col_del = st.columns(2)
@@ -318,7 +333,11 @@ with tab3:
                 st.markdown("**Tambah Item Baru ke PO Ini**")
                 add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: N1, N1-BC, N2-H dst", key="add_sell_new")
                 
-                add_prods = st.multiselect("Barang Konversi Baru", options=products_list, placeholder="Pilih barang")
+                # Filter dropdown pada bagian Tambah Item ke PO yang sudah ada
+                search_add = st.text_input("🔍 Cari Nama Barang Baru:", key="search_add_prod")
+                filtered_add = [p for p in products_list if p.lower() == search_add.strip().lower()] if search_add.strip() else products_list
+                
+                add_prods = st.multiselect("Barang Konversi Baru", options=filtered_add, placeholder="Pilih barang")
                 add_weight = st.number_input("Berat Total Baru (gr)", min_value=0, step=50, key="add_weight_new")
                 
                 if st.button("➕ Tambah Item", use_container_width=True):
