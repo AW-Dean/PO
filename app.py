@@ -106,18 +106,18 @@ with tab1:
     st.markdown("---")
     st.subheader("2. Tambah Detail Pesanan (Multiple Item)")
 
-    # Hapus st.form agar filter menjadi reaktif
+    # 1. Tetap simpan Nama Jual
     selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
 
-    # Filter dropdown berdasarkan input pencarian spesifik (Exact Match)
-    search_query_item = st.text_input("🔍 Cari Nama Barang Konversi:", placeholder="Ketik nama barang (misal: B1)", key="search_item_input")
-    filtered_options = [p for p in products_list if p.lower() == search_query_item.strip().lower()] if search_query_item.strip() else products_list
-
+    # 2. GUNAKAN MULTISELECT LANGSUNG
+    # Streamlit secara otomatis menampilkan kotak pencarian di dalam multiselect ini
+    # Kita tidak perlu lagi membuat st.text_input terpisah di atasnya.
     selected_products = st.multiselect(
         "Konversi (Pilih nama barang untuk nama jual)",
-        options=filtered_options,
-        placeholder="Pilih barang "
+        options=products_list, # Masukkan list lengkap dari DB
+        placeholder="Ketik untuk mencari barang..."
     )
+    
     weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
 
     if st.button("➕ Tambah Item ke Daftar"):
