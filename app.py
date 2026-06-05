@@ -1,6 +1,7 @@
 import streamlit as st
 import duckdb
 import random
+import json
 from datetime import datetime
 
 # --- KONFIGURASI HALAMAN ---
@@ -139,12 +140,24 @@ with tab1:
                 po_id = generate_po_id(po_date, customer_name)
                 
                 try:
+                    # Menghitung total berat dan memformat data items ke JSON
+                    total_weight = sum(item["Berat (gr)"] for item in st.session_state.po_items)
+                    items_summary = [
+                        {
+                            "name": item["Nama Jual"],
+                            "detail_gabungan": item["Barang Konversi"],
+                            "berat": float(item["Berat (gr)"])
+                        }
+                        for item in st.session_state.po_items
+                    ]
+                    items_json = json.dumps(items_summary)
+
                     # 1. Simpan Header PO
                     conn.execute("""
                         INSERT INTO AWE_DB.purchase_orders 
                         (po_id, po_date, customer_name, selling_name, product_names, weight)
-                        VALUES (?, ?, ?, 'MULTIPLE ITEMS', 'MULTIPLE ITEMS', 0)
-                    """, (po_id, po_date, customer_name))
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (po_id, po_date, customer_name, items_json, items_json, total_weight))
                     
                     # 2. Simpan Detail Items PO
                     for item in st.session_state.po_items:
