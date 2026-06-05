@@ -109,9 +109,9 @@ with tab1:
     with st.form("form_add_item"):
         selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
         selected_products = st.multiselect(
-            "Barang Konversi (Pilih barang pembentuk nama jual)",
+            "Konversi (Pilih nama barang untuk nama jual)",
             options=products_list,
-            placeholder="Pilih barang dari katalog..."
+            placeholder="Pilih barang "
         )
         weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
         
