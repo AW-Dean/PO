@@ -114,7 +114,7 @@ with tab1:
     # Kita tidak perlu lagi membuat st.text_input terpisah di atasnya.
     selected_products = st.multiselect(
         "Konversi (Pilih nama barang untuk nama jual)",
-        options=products_list, # Masukkan list lengkap dari DB
+        options==products_list, # Masukkan list lengkap dari DB
         placeholder="Ketik untuk mencari barang..."
     )
     
