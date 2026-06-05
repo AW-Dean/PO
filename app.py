@@ -345,7 +345,7 @@ with tab3:
                             conn.execute("INSERT INTO AWE_DB.po_items (po_id, selling_name, product_names, weight) VALUES (?, ?, ?, ?)", (selected_po_id, nj, bk, bw))
                     st.success("✅ Item baru berhasil ditambahkan!")
                     st.session_state.df_add_items = pd.DataFrame(columns=["Nama Jual", "Barang Konversi", "Berat (gr)"])
-                        st.rerun()
+                    st.rerun()
                             
                 st.markdown("---")
                 st.markdown(f"**3. Hapus Seluruh Data PO:** `{selected_po_id}`")
