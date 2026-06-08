@@ -182,12 +182,15 @@ with tab1:
                     """, (po_id, po_date, customer_name, items_json, items_json, total_weight))
 
                     # 2. Simpan Detail Items PO
-                    for item in st.session_state.po_items:
-                        conn.execute("""
-                            INSERT INTO AWE_DB.po_items 
-                            (po_id, selling_name, product_names, weight)
-                            VALUES (?, ?, ?, ?)
-                        """, (po_id, item["Nama Jual"], item["Barang Konversi"], item["Berat (gr)"]))
+                    # Optimasi: Batch Insert lebih cepat daripada looping execute
+                    items_to_insert = [
+                        (po_id, item["Nama Jual"], item["Barang Konversi"], item["Berat (gr)"])
+                        for item in st.session_state.po_items
+                    ]
+                    conn.executemany("""
+                        INSERT INTO AWE_DB.po_items (po_id, selling_name, product_names, weight)
+                        VALUES (?, ?, ?, ?)
+                    """, items_to_insert)
 
                     st.success("✅ Seluruh data PO Berhasil Dibuat!")
                     st.info(f"**ID PO Anda:** `{po_id}`")
@@ -242,8 +245,17 @@ with tab2:
 with tab3:
     st.subheader("Edit atau Hapus Purchase Order")
     try:
-        # Ambil daftar PO untuk dropdown
-        df_po_list = conn.execute("SELECT po_id, customer_name FROM AWE_DB.purchase_orders ORDER BY po_date DESC").df()
+        # Optimasi Performa: Jangan ambil semua data, cukup 50-100 PO terbaru saja 
+        # atau gunakan pencarian untuk membatasi data yang ditarik ke browser.
+        search_edit = st.text_input("🔍 Cari ID PO atau Nama Customer untuk diedit", placeholder="Ketik minimal 3 huruf...", key="search_edit_selector")
+        
+        query_list = "SELECT po_id, customer_name FROM AWE_DB.purchase_orders "
+        if len(search_edit) >= 3:
+            query_list += f"WHERE po_id ILIKE '%{search_edit}%' OR customer_name ILIKE '%{search_edit}%' "
+        query_list += "ORDER BY po_date DESC LIMIT 50"
+
+        df_po_list = conn.execute(query_list).df()
+        
         if df_po_list.empty:
             st.info("Belum ada data PO untuk diedit atau dihapus.")
         else:
