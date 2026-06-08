@@ -90,7 +90,7 @@ products_list = fetch_products()
 tab1, tab2, tab3 = st.tabs(["📝 Buat PO Baru", "📋 PO Aktif", "✏️ Edit & Hapus PO"])
 
 with tab1:
-    st.markdown("Silakan lengkapi detail Purchase Order di bawah ini. ID PO akan digenerate secara otomatis.")
+    st.markdown("Silakan lengkapi detail Purchase Order di bawah ini.")
 
     # Inisialisasi session state untuk menyimpan daftar item sementara
     if "po_items" not in st.session_state:
