@@ -153,7 +153,34 @@ with tab1:
     # Tampilkan daftar item dan tombol simpan utama
     if st.session_state.po_items:
         st.markdown("**Daftar Item dalam PO ini:**")
-        st.dataframe(st.session_state.po_items, use_container_width=True)
+        
+        # Menampilkan header tabel manual
+        col_header_name, col_header_prods, col_header_weight, col_header_delete = st.columns([0.3, 0.4, 0.15, 0.15])
+        with col_header_name:
+            st.write("**Nama Jual**")
+        with col_header_prods:
+            st.write("**Barang Konversi**")
+        with col_header_weight:
+            st.write("**Berat (gr)**")
+        with col_header_delete:
+            st.write("**Aksi**")
+        st.markdown("---") # Garis pemisah
+
+        # Menampilkan setiap item dengan tombol hapus
+        for i, item in enumerate(st.session_state.po_items):
+            col_name, col_prods, col_weight, col_delete = st.columns([0.3, 0.4, 0.15, 0.15])
+            with col_name:
+                st.write(item["Nama Jual"])
+            with col_prods:
+                st.write(item["Barang Konversi"])
+            with col_weight:
+                st.write(f"{item['Berat (gr)']:.0f} gr")
+            with col_delete:
+                if st.button("🗑️ Hapus", key=f"delete_item_{i}"):
+                    del st.session_state.po_items[i]
+                    st.success("Item berhasil dihapus dari daftar.")
+                    st.rerun()
+        st.markdown("---") # Garis pemisah setelah daftar item
 
         if st.button("💾 Simpan Semua Data PO", type="primary", use_container_width=True):
             if not customer_name.strip():
