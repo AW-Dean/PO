@@ -207,13 +207,13 @@ with tab2:
     # Fitur Pencarian
     search_po = st.text_input("🔍 Cari berdasarkan Nama Customer, Nama Jual, atau ID PO", placeholder="Ketik di sini...", key="search_po_active")
 
-    # Query Data: Menggunakan LEFT JOIN agar item-item dalam 1 PO tampil semua bersama data Header-nya
-    query = """
+    # Base Query
+    query_base = """
         SELECT 
             p.po_id as 'ID PO', 
             p.po_date as 'Tanggal', 
             p.customer_name as 'Customer', 
-            COALESCE(i.selling_name, p.selling_name) as 'Nama Jual', 
+            i.selling_name as 'Nama Jual', 
             COALESCE(i.product_names, p.product_names) as 'Barang Konversi', 
             COALESCE(i.weight, p.weight) as 'Berat (gr)' 
         FROM AWE_DB.purchase_orders p
@@ -221,14 +221,16 @@ with tab2:
     """
 
     # Tambahkan filter ke query jika kolom pencarian diisi
+    params = []
     if search_po:
-        query += f" WHERE p.customer_name ILIKE '%{search_po}%' OR p.po_id ILIKE '%{search_po}%' OR i.selling_name ILIKE '%{search_po}%'"
+        query_base += " WHERE p.customer_name ILIKE ? OR p.po_id ILIKE ? OR i.selling_name ILIKE ?"
+        search_term = f"%{search_po}%"
+        params = [search_term, search_term, search_term]
 
-    # Urutkan dari PO terbaru
-    query += " ORDER BY p.po_date DESC, p.po_id"
+    query_base += " ORDER BY p.po_date DESC, p.po_id"
 
     try:
-        df_po = conn.execute(query).df()
+        df_po = conn.execute(query_base, params).df()
         if df_po.empty:
             st.info("Belum ada data PO yang sesuai.")
         else:
@@ -298,18 +300,8 @@ with tab3:
                     st.markdown(f"**Edit Detail Item:** `{edit_sell}`")
                     new_sell = st.text_input("Nama Jual Barang", value=edit_sell, key="edit_sell_input")
 
-                    # Filter dropdown pada bagian Edit
-                    search_edit = st.text_input("🔍 Cari Nama Barang:", key="search_edit_prod")
-                    if search_edit.strip():
-                        filtered_edit = [p for p in products_list if p.lower() == search_edit.strip().lower()]
-                        # Pastikan item yang sedang terpilih tetap ada di daftar agar Streamlit tidak error
-                        for p in valid_edit_prods:
-                            if p not in filtered_edit:
-                                filtered_edit.append(p)
-                    else:
-                        filtered_edit = products_list
-
-                    new_prods = st.multiselect("Barang Konversi", options=filtered_edit, default=valid_edit_prods)
+                    # Gunakan products_list langsung, multiselect sudah punya fitur pencarian internal yang lebih cepat
+                    new_prods = st.multiselect("Barang Konversi", options=products_list, default=valid_edit_prods, key="edit_prods_multi")
                     new_weight = st.number_input("Berat Total (gr)", min_value=0, step=50, value=int(edit_weight), key="edit_weight_input")
 
                     col_upd, col_del = st.columns(2)
@@ -333,11 +325,8 @@ with tab3:
                 st.markdown("**Tambah Item Baru ke PO Ini**")
                 add_sell = st.text_input("Nama Jual Barang Baru", placeholder="Contoh: N1, N1-BC, N2-H dst", key="add_sell_new")
 
-                # Filter dropdown pada bagian Tambah Item ke PO yang sudah ada
-                search_add = st.text_input("🔍 Cari Nama Barang Baru:", key="search_add_prod")
-                filtered_add = [p for p in products_list if p.lower() == search_add.strip().lower()] if search_add.strip() else products_list
-
-                add_prods = st.multiselect("Barang Konversi Baru", options=filtered_add, placeholder="Pilih barang")
+                # Optimasi: Hapus filter manual, gunakan pencarian bawaan multiselect
+                add_prods = st.multiselect("Barang Konversi Baru", options=products_list, placeholder="Pilih barang", key="add_prods_multi")
                 add_weight = st.number_input("Berat Total Baru (gr)", min_value=0, step=50, key="add_weight_new")
 
                 if st.button("➕ Tambah Item", use_container_width=True):
