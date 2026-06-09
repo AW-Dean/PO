@@ -18,14 +18,16 @@ layout="centered"
 components.html(
     """
     <script>
-    const doc = window.parent.document;
-    doc.addEventListener('keydown', function(e) {
-        // Memblokir Ctrl+J (Downloads) atau Ctrl+S (Save) yang sering tertekan tidak sengaja oleh scanner
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.keyCode === 74 || e.key === 's' || e.keyCode === 83)) {
+    const blockShortcut = function(e) {
+        // Memblokir Ctrl+J (74), Ctrl+S (83), dan Ctrl+N (78)
+        if ((e.ctrlKey || e.metaKey) && [74, 83, 78].includes(e.keyCode)) {
             e.preventDefault();
-            console.log('Shortcut diblokir untuk mencegah tab download terbuka otomatis.');
+            e.stopImmediatePropagation();
         }
-    });
+    };
+    // Pasang listener di parent window dan di dalam iframe (capturing phase)
+    window.parent.document.addEventListener('keydown', blockShortcut, true);
+    document.addEventListener('keydown', blockShortcut, true);
     </script>
     """,
     height=0,
@@ -125,49 +127,49 @@ with tab1:
     st.markdown("---")
     st.subheader("2. Tambah Detail Pesanan (Multiple Item)")
 
-    # 1. Tetap simpan Nama Jual
-    selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
+    # Gunakan FORM untuk membungkus input barang agar Enter tidak langsung memicu rerun aplikasi
+    with st.form("form_tambah_barang", clear_on_submit=True):
+        selling_name = st.text_input("Nama Jual Barang", placeholder="Contoh: N1, N1-BC, N2-H dst")
 
-    # 2. GUNAKAN MULTISELECT LANGSUNG
-    # Streamlit secara otomatis menampilkan kotak pencarian di dalam multiselect ini
-    # Kita tidak perlu lagi membuat st.text_input terpisah di atasnya.
-    selected_products = st.multiselect(
-        "Konversi (Pilih nama barang untuk nama jual)",
-        options=products_list, # Masukkan list lengkap dari DB
-        placeholder="Ketik untuk mencari barang..."
-    )
-    
-    weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
+        selected_products = st.multiselect(
+            "Konversi (Pilih nama barang untuk nama jual)",
+            options=products_list,
+            placeholder="Ketik untuk mencari barang..."
+        )
+        
+        weight = st.number_input("Berat Total (gr)", min_value=0, step=50)
+        
+        submit_item = st.form_submit_button("➕ Tambah Item ke Daftar", use_container_width=True)
 
-    if st.button("➕ Tambah Item ke Daftar"):
-        # --- VALIDASI DUPLIKAT & KEMIRIPAN (CASE & TYPO) ---
-        input_name = selling_name.strip()
-        is_duplicate = False
-        similar_match = None
+        if submit_item:
+            # --- VALIDASI DUPLIKAT & KEMIRIPAN (CASE & TYPO) ---
+            input_name = selling_name.strip()
+            is_duplicate = False
+            similar_match = None
 
-        for item in st.session_state.po_items:
-            existing_name = item["Nama Jual"]
-            if input_name.lower() == existing_name.lower():
-                is_duplicate = True
-                break
-            if not similar_match and difflib.SequenceMatcher(None, input_name.lower(), existing_name.lower()).ratio() > 0.8:
-                similar_match = existing_name
+            for item in st.session_state.po_items:
+                existing_name = item["Nama Jual"]
+                if input_name.lower() == existing_name.lower():
+                    is_duplicate = True
+                    break
+                if not similar_match and difflib.SequenceMatcher(None, input_name.lower(), existing_name.lower()).ratio() > 0.8:
+                    similar_match = existing_name
 
-        if not selling_name.strip() or not selected_products or weight <= 0:
-            st.warning("⚠️ Lengkapi data item (Nama Jual, Barang, dan Berat > 0)!")
-        elif is_duplicate:
-            st.error(f"🚫 Gagal: Item '{input_name}' sudah ada di daftar!")
-        else:
-            if similar_match:
-                st.warning(f"⚠️ Peringatan: Nama '{input_name}' sangat mirip dengan '{similar_match}'. Mohon periksa kembali apakah ada typo.")
+            if not selling_name.strip() or not selected_products or weight <= 0:
+                st.warning("⚠️ Lengkapi data item (Nama Jual, Barang, dan Berat > 0)!")
+            elif is_duplicate:
+                st.error(f"🚫 Gagal: Item '{input_name}' sudah ada di daftar!")
+            else:
+                if similar_match:
+                    st.warning(f"⚠️ Peringatan: Nama '{input_name}' sangat mirip dengan '{similar_match}'. Mohon periksa kembali apakah ada typo.")
 
-            st.session_state.po_items.append({
-                "Nama Jual": selling_name,
-                "Barang Konversi": ", ".join(selected_products),
-                "Berat (gr)": weight
-            })
-            st.success("✅ Item berhasil ditambahkan ke daftar!")
-            st.rerun()
+                st.session_state.po_items.append({
+                    "Nama Jual": selling_name,
+                    "Barang Konversi": ", ".join(selected_products),
+                    "Berat (gr)": weight
+                })
+                st.success("✅ Item berhasil ditambahkan ke daftar!")
+                st.rerun()
 
     # Tampilkan daftar item dan tombol simpan utama
     if st.session_state.po_items:
