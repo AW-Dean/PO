@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import duckdb
 import random
 import json
@@ -10,6 +11,24 @@ st.set_page_config(
 page_title="Sistem Manajemen PO",
 page_icon="📦",
 layout="centered"
+)
+
+# --- SCRIPT UNTUK MENCEGAH SHORTCUT DOWNLOAD (CTRL+J) ---
+# Barcode scanner seringkali memicu shortcut browser secara tidak sengaja
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    doc.addEventListener('keydown', function(e) {
+        // Memblokir Ctrl+J (Downloads) atau Ctrl+S (Save) yang sering tertekan tidak sengaja oleh scanner
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.keyCode === 74 || e.key === 's' || e.keyCode === 83)) {
+            e.preventDefault();
+            console.log('Shortcut diblokir untuk mencegah tab download terbuka otomatis.');
+        }
+    });
+    </script>
+    """,
+    height=0,
 )
 
 # --- FUNGSI KONEKSI DATABASE ---
